@@ -17,7 +17,8 @@
       {% endif %}
     </div>
     <div class="header-right">
-      {% if session.get('user') %}
+      <!-- FIXED: Changed session.get('user') to session.get('user_id') -->
+      {% if session.get('user_id') %}
         <div style="color:white; font-weight:600;">Hi, {{ session.get('name') }}</div>
         <a class="nav-btn" href="{{ url_for('logout') }}">Logout</a>
       {% else %}
@@ -61,14 +62,7 @@
     const homeLink = document.getElementById('home-link');
     if (homeLink) {
       homeLink.addEventListener('click', (e) => {
-        if (window.location.pathname === "{{ url_for('index') }}") {
-          e.preventDefault();
-          const flash = document.createElement('div');
-          flash.className = 'flash-container';
-          flash.innerHTML = `<div class="flash success">Already on the landing page.</div>`;
-          document.body.appendChild(flash);
-          setTimeout(() => flash.remove(), 3000);
-        }
+        // If specific logic needed for home click, add here
       });
     }
   </script>
