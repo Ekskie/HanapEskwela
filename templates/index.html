@@ -12,24 +12,48 @@
     padding: 60px 40px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: stretch; /* Stretch to match height */
     border-bottom: 1px solid #eee;
+    gap: 40px;
+    min-height: 400px;
+  }
+  .hero-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
   .hero-text h1 { font-size: 64px; color: #2E7D32; margin: 0; line-height: 1.1; }
   .hero-text p { font-size: 18px; color: #555; max-width: 600px; margin-top: 15px; }
   
+  .hero-map-container {
+    flex: 1;
+    max-width: 500px;
+    background: #ddd;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    position: relative;
+    z-index: 1; /* Ensure map sits correctly */
+  }
+  #hero-map {
+    width: 100%;
+    height: 100%;
+    min-height: 350px;
+  }
+
   .search-container {
     padding: 20px;
     background: white;
     display: flex;
     justify-content: center;
-    align-items: center; /* Center align items vertically */
+    align-items: center; 
     gap: 10px;
     position: sticky;
     top: 0;
     z-index: 900;
     box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-    flex-wrap: wrap; /* Allow wrapping on small screens */
+    flex-wrap: wrap; 
   }
   .search-input { width: 300px; padding: 10px 15px; border-radius: 20px; border: 1px solid #ddd; outline: none; }
   .filter-select { padding: 10px; border-radius: 20px; border: 1px solid #ddd; }
@@ -179,7 +203,7 @@
   .leaflet-routing-container {
     background-color: white;
     padding: 10px;
-    max-height: 200px; /* Limit height so it doesn't cover the whole map */
+    max-height: 200px;
     overflow-y: auto;
     width: 250px;
     font-size: 12px;
@@ -187,10 +211,6 @@
     border-radius: 8px;
     opacity: 0.95;
   }
-  
-  /* Make the header of the routing smaller */
-  .leaflet-routing-container h2 { font-size: 14px; margin-top: 0; }
-  .leaflet-routing-container h3 { font-size: 13px; font-weight: normal; }
   
   .link-text { color: #1976D2; text-decoration: none; }
   .link-text:hover { text-decoration: underline; }
@@ -200,6 +220,8 @@
     .modal-content { flex-direction: column; height: auto; max-height: 90vh; overflow-y: auto; }
     .modal-left, .modal-right { width: 100%; }
     .modal-left { height: 300px; }
+    .hero-section { flex-direction: column; text-align: center; }
+    .hero-map-container { width: 100%; min-height: 300px; margin-top: 20px; }
   }
 </style>
 
@@ -225,8 +247,9 @@
     <h1>Hanap Eskwela</h1>
     <p>Discover the best higher education institutions in Laguna. Compare tuition, location, and programs to find your perfect match.</p>
   </div>
-  <div style="flex:1; max-width:400px; height:300px; background:#ddd; border-radius:12px; overflow:hidden;">
-    <img src="https://d2nnykqiaju69u.cloudfront.net/pslife_photos/pat_temp/Laguna%20State%20Polytechnic%20University%20fire%20kill%20student%20inner%20image.jpg" style="width:100%; height:100%; object-fit:cover;">
+  <!-- HERO MAP CONTAINER -->
+  <div class="hero-map-container">
+    <div id="hero-map"></div>
   </div>
 </div>
 
@@ -298,11 +321,38 @@
 
 <script>
 const schools = {{ schools | tojson }};
-let map = null;
+let map = null; // Modal map
+let heroMap = null; // Main landing page map
 let userLat = null;
 let userLng = null;
 let currentSchoolId = null;
 let routingControl = null;
+
+// Initialize Hero Map immediately
+document.addEventListener('DOMContentLoaded', () => {
+    initHeroMap();
+});
+
+function initHeroMap() {
+    // Default view: Center of Laguna
+    heroMap = L.map('hero-map').setView([14.2, 121.2], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(heroMap);
+
+    // Add markers for all schools
+    schools.forEach(s => {
+        if(s.lat && s.lng) {
+            const marker = L.marker([s.lat, s.lng]).addTo(heroMap);
+            // Clicking marker opens modal
+            marker.on('click', () => {
+                openModal(s.id);
+            });
+            // Optional: Tooltip on hover
+            marker.bindTooltip(s.name);
+        }
+    });
+}
 
 // Explicit Request Function attached to Button
 async function requestUserLocation() {
@@ -310,7 +360,6 @@ async function requestUserLocation() {
     btn.innerHTML = "⌛ Locating...";
     btn.style.backgroundColor = "#FF9800"; // Orange while loading
     
-    // 1. Check for Secure Context (HTTPS) - Browser Requirement
     if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
         alert("⚠️ GPS Error: Browser blocked location request.\n\nREASON: You are accessing this site via an insecure connection (HTTP).\n\nSOLUTION: Geolocation only works on HTTPS or localhost.");
         btn.innerHTML = "❌ Insecure";
@@ -324,7 +373,6 @@ async function requestUserLocation() {
         return;
     }
 
-    // 2. Check Permissions API to detect if already blocked
     if (navigator.permissions && navigator.permissions.query) {
         try {
             const result = await navigator.permissions.query({ name: 'geolocation' });
@@ -339,11 +387,8 @@ async function requestUserLocation() {
         }
     }
 
-    // 3. Request Position
-    // NOTE: 'enableHighAccuracy' is set to FALSE to prevent timeouts on mobile indoors
     navigator.geolocation.getCurrentPosition(
         (pos) => {
-            // Success
             userLat = pos.coords.latitude;
             userLng = pos.coords.longitude;
             console.log("Location found:", userLat, userLng);
@@ -352,13 +397,17 @@ async function requestUserLocation() {
             btn.classList.add('active');
             btn.style.backgroundColor = "#4CAF50"; // Green
             
-            // If a school modal is already open, reload it to draw the route
+            // Update Hero Map to show User location too
+            if(heroMap) {
+                L.marker([userLat, userLng]).addTo(heroMap).bindPopup("You are here").openPopup();
+                heroMap.setView([userLat, userLng], 12);
+            }
+
             if (currentSchoolId) {
                 openModal(currentSchoolId);
             }
         },
         (err) => { 
-            // Error Handling
             console.error("Location Error:", err);
             let msg = "Unknown error.";
             let btnText = "⚠️ Retry";
@@ -383,7 +432,7 @@ async function requestUserLocation() {
             btn.style.backgroundColor = "#F44336"; // Red
         },
         { 
-            enableHighAccuracy: false, // Changed to false for better mobile compatibility/speed
+            enableHighAccuracy: false,
             timeout: 20000, 
             maximumAge: 0 
         }
@@ -403,7 +452,6 @@ function renderSchools(list) {
     const div = document.createElement('div');
     div.className = 'school-card';
     div.onclick = (e) => {
-      // Open modal only if not clicking the heart
       if(!e.target.classList.contains('fav-icon')) openModal(s.id);
     };
     div.innerHTML = `
@@ -426,8 +474,18 @@ function filterSchools() {
   const fav = document.getElementById('favFilter').value;
   
   const hero = document.getElementById('hero');
-  if (q || type !== 'all' || fav !== 'all') hero.style.display = 'none';
-  else hero.style.display = 'flex';
+  const grid = document.getElementById('schoolGrid');
+
+  // If no search and no filters active, show hero and hide grid
+  if (!q && type === 'all' && fav === 'all') {
+      hero.style.display = 'flex';
+      grid.style.display = 'none'; // Hide grid
+      return;
+  }
+
+  // Otherwise hide hero and show grid
+  hero.style.display = 'none';
+  grid.style.display = 'grid'; // Show grid
 
   const filtered = schools.filter(s => {
     const matchQ = s.name.toLowerCase().includes(q) || (s.programs && s.programs.toLowerCase().includes(q));
@@ -440,7 +498,7 @@ function filterSchools() {
 
 // Logic for clicking heart icon on the card
 function toggleFav(id, btn) {
-  // Optimistic UI toggle for immediate feedback
+  // Optimistic UI toggle
   btn.classList.toggle('active');
 
   fetch('/api/toggle_favorite', {
@@ -448,27 +506,34 @@ function toggleFav(id, btn) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({school_id: id})
   })
-  .then(res => res.json())
+  .then(res => {
+      if(res.status === 401) {
+          // If 401 Unauthorized, redirect to login
+          window.location.href = "{{ url_for('login') }}";
+          throw new Error("Unauthorized");
+      }
+      return res.json();
+  })
   .then(data => {
     const s = schools.find(x => x.id === id);
     if(s) {
         s.is_fav = (data.status === 'added');
-        // Ensure UI matches server state (in case optimistic was wrong)
         if(s.is_fav) btn.classList.add('active');
         else btn.classList.remove('active');
     }
   })
   .catch(err => {
       console.error(err);
-      // Revert if error
-      btn.classList.toggle('active');
+      if(err.message !== "Unauthorized") {
+          btn.classList.toggle('active'); // Revert
+      }
   });
 }
 
 // Logic for clicking big button in the modal
 function toggleModalFav() {
     const btn = document.getElementById('m-fav-btn');
-    if(btn.disabled) return; // Prevention
+    if(btn.disabled) return; 
     
     btn.disabled = true;
     const originalText = btn.innerText;
@@ -479,14 +544,19 @@ function toggleModalFav() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({school_id: currentSchoolId})
     })
-    .then(res => res.json())
+    .then(res => {
+        if(res.status === 401) {
+            window.location.href = "{{ url_for('login') }}";
+            throw new Error("Unauthorized");
+        }
+        return res.json();
+    })
     .then(data => {
         const s = schools.find(x => x.id === currentSchoolId);
         if(s) {
             s.is_fav = (data.status === 'added');
             updateModalFavBtnState(s.is_fav);
             
-            // Also sync the grid icon if visible
             const gridIcon = document.querySelector(`.fav-icon[data-id="${currentSchoolId}"]`);
             if(gridIcon) {
                 if(s.is_fav) gridIcon.classList.add('active');
@@ -525,7 +595,6 @@ function openModal(id) {
   if(!s) return;
   currentSchoolId = id;
 
-  // Increment view count backend
   fetch('/api/view_school', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -537,7 +606,6 @@ function openModal(id) {
   document.getElementById('modal').style.display = 'flex';
   document.body.style.overflow = 'hidden';
 
-  // Populate info
   document.getElementById('m-name').innerText = s.name;
   document.getElementById('m-img').src = s.img;
   document.getElementById('m-desc').innerText = s.desc || 'No description.';
@@ -547,7 +615,6 @@ function openModal(id) {
   document.getElementById('m-progs').innerText = s.programs;
   document.getElementById('m-tuition').innerText = s.tuition;
   
-  // Handle Contact
   const contactLink = document.getElementById('m-contact');
   const contactText = s.contact || 'N/A';
   contactLink.innerText = contactText;
@@ -558,7 +625,6 @@ function openModal(id) {
       contactLink.style.pointerEvents = 'none';
   }
 
-  // Handle Socials
   const socialLink = document.getElementById('m-socials');
   const socialText = s.socials || 'N/A';
   socialLink.innerText = socialText;
@@ -576,13 +642,10 @@ function openModal(id) {
   
   document.getElementById('m-link').href = s.link;
   
-  // Initialize modal favorite button state
   updateModalFavBtnState(s.is_fav);
 
-  // Google Maps Link Logic
   const gLink = document.getElementById('m-gmaps-link');
   if (userLat && userLng && s.lat && s.lng) {
-      // Create a Google Maps Directions URL
       const gmapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${s.lat},${s.lng}&travelmode=driving`;
       gLink.href = gmapsUrl;
       gLink.style.display = 'inline-block';
@@ -597,7 +660,7 @@ function openModal(id) {
       }
   }
 
-  // Leaflet Map Logic
+  // Modal Map (Separate from Hero Map)
   setTimeout(() => {
     if (!map) {
       map = L.map('map').setView([14.2, 121.2], 10);
@@ -606,14 +669,11 @@ function openModal(id) {
       }).addTo(map);
     }
     
-    // Resize map to fix rendering issues in hidden modals
     map.invalidateSize();
 
-    // Clear previous routing and layers
     map.eachLayer((layer) => {
         if (!!layer.toGeoJSON) { map.removeLayer(layer); }
     });
-    // Re-add tile layer
     if (routingControl) {
         map.removeControl(routingControl);
         routingControl = null;
@@ -621,16 +681,12 @@ function openModal(id) {
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // School Marker
     const schoolLatLng = [s.lat || 14.2, s.lng || 121.1];
     L.marker(schoolLatLng).addTo(map).bindPopup(s.name).openPopup();
 
-    // Routing Logic (User -> School)
     if (userLat && userLng && s.lat && s.lng) {
-        // Add Marker for User
         L.marker([userLat, userLng]).addTo(map).bindPopup("You are here");
 
-        // Calculate and Draw Route
         routingControl = L.Routing.control({
             waypoints: [
                 L.latLng(userLat, userLng),
@@ -642,12 +698,12 @@ function openModal(id) {
             lineOptions: {
                 styles: [{color: '#2E7D32', opacity: 0.8, weight: 6}]
             },
-            createMarker: function() { return null; }, // We already added custom markers
+            createMarker: function() { return null; }, 
             addWaypoints: false,
             draggableWaypoints: false,
             fitSelectedRoutes: true,
-            show: true, // SHOW TEXT DIRECTIONS
-            collapsible: true // ALLOW COLLAPSING THE DIRECTIONS
+            show: true, 
+            collapsible: true 
         }).addTo(map);
     } else {
         if (!userLat && !userLng) {
@@ -663,7 +719,7 @@ function closeModal() {
   document.body.style.overflow = 'auto';
 }
 
-// Init
-renderSchools(schools);
+// Don't render schools on initial load anymore
+// renderSchools(schools); 
 </script>
 {% endblock %}

@@ -9,10 +9,10 @@
 <body>
   <header>
     <div class="header-left">
-      <a href="{{ url_for('index') }}" id="home-link">
+      <a href="{{ url_for('landing') }}" id="home-link">
         <img src="https://cdn-icons-png.flaticon.com/512/25/25694.png" alt="Home" style="width:36px;filter:brightness(0) invert(1);">
       </a>
-      {% if request.path != url_for('index') %}
+      {% if request.path != url_for('landing') %}
         <h1 class="site-title">Hanap Eskwela</h1>
       {% endif %}
     </div>

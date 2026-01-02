@@ -107,22 +107,54 @@ def admin_required(f):
         
         if not session.get('is_admin'):
             flash('Access denied. Admin only.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('home'))
         return f(*args, **kwargs)
     return decorated
 
-# --- Auth Routes ---
+# --- Public Landing Route (ROOT) ---
 
 @app.route('/')
-def root():
-    return redirect(url_for('login'))
+def landing():
+    # If user is already logged in, redirect to home
+    if session.get('user_id'):
+        return redirect(url_for('home'))
+        
+    # Fetch schools for the public map
+    schools_res = supabase.table('schools').select('*').execute()
+    schools = schools_res.data
+    return render_template('landing.html', schools=schools)
+
+# --- Authenticated App Route (HOME) ---
+
+@app.route('/home')
+def home():
+    # NOTE: This page is viewable publicly (as per "Student Home"), 
+    # but some features like Favorites need login.
+    
+    # 1. Fetch Schools
+    schools_res = supabase.table('schools').select('*').execute()
+    schools = schools_res.data
+    
+    # 2. Fetch User Favorites (Only if logged in)
+    user_id = session.get('user_id')
+    fav_ids = []
+    
+    if user_id:
+        fav_res = supabase.table('favorites').select('school_id').eq('user_id', user_id).execute()
+        fav_ids = [item['school_id'] for item in fav_res.data]
+    
+    # 3. Merge data
+    for s in schools:
+        s['is_fav'] = s['id'] in fav_ids
+        
+    return render_template('index.html', schools=schools)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if session.get('user_id'):
         if session.get('is_admin'):
             return redirect(url_for('admin_interface'))
-        return redirect(url_for('index'))
+        return redirect(url_for('home'))
 
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
@@ -135,7 +167,7 @@ def login():
                 user_id = auth_response.user.id
                 profile = get_public_profile(user_id)
                 
-                # Create profile if missing (legacy fix)
+                # Create profile if missing
                 if not profile:
                     profile = {
                         'id': user_id, 
@@ -153,31 +185,26 @@ def login():
 
                 if profile.get('is_admin', False):
                     # --- ADMIN 2FA FLOW ---
-                    # 1. Generate Code
                     code = ''.join(random.choices(string.digits, k=6))
-                    
-                    # 2. Store in session (temp)
                     session['pre_2fa_user_id'] = user_id
                     session['pre_2fa_profile'] = profile
-                    session['admin_2fa_code'] = code # Store expected code
+                    session['admin_2fa_code'] = code 
                     
-                    # 3. Send Email
                     email_sent = send_2fa_email(email, code)
-                    
                     if email_sent:
                         flash(f"Verification code sent to {email}", 'success')
                     else:
-                        flash("Could not send email. Check server logs for code (Dev Mode).", 'warning')
+                        flash("Could not send email. Check logs.", 'warning')
 
                     return render_template('login_2fa.html')
                 
-                # Standard User Success
+                # Standard User Success -> Redirect to /home
                 session['user_id'] = user_id
                 session['email'] = auth_response.user.email
                 session['name'] = profile.get('name')
                 session['is_admin'] = False
                 flash('Logged in successfully.', 'success')
-                return redirect(url_for('index'))
+                return redirect(url_for('home'))
                 
         except Exception as e:
             flash(f"Login failed: {str(e)}", 'error')
@@ -187,7 +214,6 @@ def login():
 @app.route('/verify-2fa', methods=['POST'])
 def verify_2fa():
     code_input = request.form.get('code')
-    
     user_id = session.get('pre_2fa_user_id')
     profile = session.get('pre_2fa_profile')
     expected_code = session.get('admin_2fa_code')
@@ -196,12 +222,10 @@ def verify_2fa():
         return redirect(url_for('login'))
     
     if code_input == expected_code:
-        # Clear temp session vars
         session.pop('pre_2fa_user_id', None)
         session.pop('pre_2fa_profile', None)
         session.pop('admin_2fa_code', None)
         
-        # Log in admin
         session['user_id'] = user_id
         session['email'] = profile.get('email')
         session['name'] = profile.get('name')
@@ -245,7 +269,7 @@ def logout():
     supabase.auth.sign_out()
     session.clear()
     flash('Logged out.', 'success')
-    return redirect(url_for('login'))
+    return redirect(url_for('landing'))
 
 # --- Shared Settings Route ---
 
@@ -255,16 +279,13 @@ def update_settings():
     user_id = session['user_id']
     is_admin = session.get('is_admin', False)
     
-    # 1. Update Name
     if 'name' in request.form:
         new_name = request.form.get('name')
         if new_name:
-            # Update public table
             supabase.table('users').update({'name': new_name}).eq('id', user_id).execute()
             session['name'] = new_name
             flash('Profile details updated.', 'success')
 
-    # 2. Update Password
     if 'new_password' in request.form:
         new_pw = request.form.get('new_password')
         confirm_pw = request.form.get('confirm_password')
@@ -272,8 +293,6 @@ def update_settings():
         if new_pw:
             if new_pw == confirm_pw:
                 try:
-                    # Update password via Supabase Admin API
-                    # Note: This works best if you use the SERVICE_ROLE key in .env
                     supabase.auth.admin.update_user_by_id(user_id, {"password": new_pw})
                     flash('Password changed successfully.', 'success')
                 except Exception as e:
@@ -285,19 +304,6 @@ def update_settings():
         return redirect(url_for('admin_interface'))
     return redirect(url_for('profile'))
 
-# --- Student Routes ---
-
-@app.route('/index')
-@login_required
-def index():
-    user_id = session['user_id']
-    schools_res = supabase.table('schools').select('*').execute()
-    schools = schools_res.data
-    fav_res = supabase.table('favorites').select('school_id').eq('user_id', user_id).execute()
-    fav_ids = [item['school_id'] for item in fav_res.data]
-    for s in schools: s['is_fav'] = s['id'] in fav_ids
-    return render_template('index.html', schools=schools)
-
 @app.route('/profile')
 @login_required
 def profile():
@@ -305,9 +311,13 @@ def profile():
     user = get_public_profile(user_id)
     return render_template('profile.html', user=user)
 
+# --- API Routes ---
+
 @app.route('/api/toggle_favorite', methods=['POST'])
-@login_required
 def toggle_favorite():
+    if not session.get('user_id'):
+         return jsonify({'status': 'error', 'message': 'Login required'}), 401
+         
     school_id = request.json.get('school_id')
     user_id = session['user_id']
     existing = supabase.table('favorites').select('*').eq('user_id', user_id).eq('school_id', school_id).execute()
@@ -320,7 +330,6 @@ def toggle_favorite():
     return jsonify({'status': status})
 
 @app.route('/api/view_school', methods=['POST'])
-@login_required
 def view_school():
     school_id = request.json.get('school_id')
     s_res = supabase.table('schools').select('views').eq('id', school_id).execute()
@@ -335,12 +344,9 @@ def view_school():
 @app.route('/admin', methods=['GET', 'POST'])
 @admin_required
 def admin_interface():
-    # Handle Add OR Edit School
     if request.method == 'POST':
-        # Check if this is a school form submission
         if 'name' in request.form: 
-            school_id = request.form.get('school_id') # Hidden field
-            
+            school_id = request.form.get('school_id')
             data = {
                 'name': request.form.get('name'),
                 'type': request.form.get('type'),
@@ -365,18 +371,14 @@ def admin_interface():
                 data['views'] = 0
                 supabase.table('schools').insert(data).execute()
                 flash('School added successfully.', 'success')
-            
             return redirect(url_for('admin_interface'))
 
-    # Fetch Data
     schools = supabase.table('schools').select('*').order('created_at', desc=True).execute().data
     users = supabase.table('users').select('*').execute().data
     
     total_users = len(users)
     total_schools = len(schools)
     most_viewed = sorted(schools, key=lambda x: x.get('views', 0), reverse=True)[:3]
-    
-    # Current admin details
     current_admin = get_public_profile(session['user_id'])
 
     return render_template('admin_interface.html', 

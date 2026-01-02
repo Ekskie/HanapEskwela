@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+{% block title %}HanapEskwela — Welcome{% endblock %}
+{% block content %}
+
+<style>
+  /* Landing Page Specific Styles */
+  .landing-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 60px 20px;
+    background: linear-gradient(to bottom, #ffffff, #f1f8e9);
+    min-height: 80vh;
+  }
+
+  .landing-text {
+    margin-bottom: 40px;
+    max-width: 800px;
+  }
+
+  .landing-text h1 {
+    font-size: 64px;
+    color: #2E7D32;
+    margin: 0 0 20px 0;
+    line-height: 1.1;
+  }
+
+  .landing-text p {
+    font-size: 20px;
+    color: #555;
+    line-height: 1.6;
+  }
+
+  .cta-buttons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 40px;
+  }
+
+  .cta-btn {
+    padding: 15px 40px;
+    border-radius: 30px;
+    font-size: 18px;
+    font-weight: bold;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .btn-login {
+    background-color: white;
+    color: #2E7D32;
+    border: 2px solid #2E7D32;
+  }
+
+  .btn-register {
+    background-color: #2E7D32;
+    color: white;
+    border: 2px solid #2E7D32;
+    box-shadow: 0 4px 15px rgba(46, 125, 50, 0.3);
+  }
+
+  .cta-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  }
+
+  /* Slideshow Container Styles */
+  .landing-slideshow-container {
+    width: 100%;
+    max-width: 800px;
+    height: 450px;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    border: 8px solid white;
+    position: relative;
+    background: #eee;
+  }
+
+  .slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+    z-index: 1;
+  }
+
+  .slide.active {
+    opacity: 1;
+    z-index: 2;
+  }
+
+  .slide-caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 20px;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+    color: white;
+    text-align: left;
+    z-index: 3;
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+  }
+  
+  .slide.active + .slide-caption {
+    opacity: 1;
+  }
+
+  @media (max-width: 768px) {
+    .landing-text h1 { font-size: 42px; }
+    .landing-slideshow-container { height: 300px; }
+  }
+</style>
+
+<div class="landing-hero">
+  <div class="landing-text">
+    <h1>Hanap Eskwela</h1>
+    <p>Discover the best higher education institutions in Laguna. View locations, compare tuition, and find your perfect academic match.</p>
+    
+    <!-- CTA Buttons -->
+    <div class="cta-buttons">
+      <a href="{{ url_for('login') }}" class="cta-btn btn-login">Login</a>
+      <a href="{{ url_for('register') }}" class="cta-btn btn-register">Get Started</a>
+    </div>
+  </div>
+
+  <!-- Slideshow Section -->
+  <div class="landing-slideshow-container" id="slideshow-box">
+    <!-- JavaScript will populate images here -->
+  </div>
+</div>
+
+<script>
+  // School Data passed from backend
+  const schools = {{ schools | tojson }};
+  const container = document.getElementById('slideshow-box');
+  
+  // Filter schools that actually have images
+  const validSchools = schools.filter(s => s.img && s.img.trim() !== "");
+  // Default images if database is empty
+  const defaultImages = [
+      "https://getaway.ph/storage/2020/06/IMG-20200307-WA0017-01.jpeg",
+      "https://d2nnykqiaju69u.cloudfront.net/pslife_photos/pat_temp/Laguna%20State%20Polytechnic%20University%20fire%20kill%20student%20inner%20image.jpg",
+      "https://www.pacu.org.ph/wordpress/wp-content/uploads/2017/05/Lyceum-of-the-Philippines-Laguna.jpg"
+  ];
+
+  function initSlideshow() {
+      container.innerHTML = "";
+      
+      const itemsToRender = validSchools.length > 0 ? validSchools : defaultImages.map(url => ({ img: url, name: "Hanap Eskwela" }));
+
+      itemsToRender.forEach((item, index) => {
+          // Image
+          const img = document.createElement('img');
+          img.src = item.img;
+          img.className = index === 0 ? 'slide active' : 'slide';
+          img.alt = item.name;
+          img.onerror = function() { this.style.display='none'; }; // Hide broken images
+          
+          // Caption Container
+          const caption = document.createElement('div');
+          caption.className = 'slide-caption';
+          caption.innerHTML = `<h3>${item.name}</h3>`;
+          
+          // Append Image then Caption (so CSS sibling selector works)
+          container.appendChild(img);
+          container.appendChild(caption);
+      });
+
+      // Start Cycle if we have multiple images
+      if (itemsToRender.length > 1) {
+          let currentSlide = 0;
+          const slides = document.querySelectorAll('.slide');
+          const captions = document.querySelectorAll('.slide-caption');
+          
+          setInterval(() => {
+              // Hide current
+              slides[currentSlide].classList.remove('active');
+              // Calculate next
+              currentSlide = (currentSlide + 1) % slides.length;
+              // Show next
+              slides[currentSlide].classList.add('active');
+          }, 4000); // 4 seconds per slide
+      }
+  }
+
+  document.addEventListener('DOMContentLoaded', initSlideshow);
+</script>
+{% endblock %}
