@@ -151,6 +151,11 @@ def search_schools():
         
     return render_template('search.html', schools=schools)
 
+@app.route('/about')
+def about():
+    return render_template('about.html')
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if session.get('user_id'):

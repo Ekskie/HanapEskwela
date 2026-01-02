@@ -1,59 +1,72 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>{% block title %}HanapEskwela{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='/css/styles.css') }}" />
 </head>
+
 <body>
   <header>
     <div class="header-left">
       <a href="{{ url_for('landing') }}" id="home-link">
-        <img src="https://cdn-icons-png.flaticon.com/512/25/25694.png" alt="Home" style="width:36px;filter:brightness(0) invert(1);">
+        <img src="https://cdn-icons-png.flaticon.com/512/25/25694.png" alt="Home"
+          style="width:36px;filter:brightness(0) invert(1);">
       </a>
-      {% if request.path != url_for('landing') %}
-        <h1 class="site-title">Hanap Eskwela</h1>
+      {% if request.path != url_for('landing') and request.path != url_for('home') %}
+      <h1 class="site-title">Hanap Eskwela</h1>
       {% endif %}
+
     </div>
+
     <div class="header-right">
-      <a class="nav-btn" href="{{ url_for('search_schools') }}">Search Schools</a>
+      <!-- Added Navigation Links -->
+      <nav style="display: flex; gap: 10px; margin-right: 15px;">
+        <a class="nav-btn" href="{{ url_for('about') }}">About</a>
+      </nav>
+
       {% if session.get('user_id') %}
-        <div style="color:white; font-weight:600; display: flex; gap: 10px; align-items: center;">
-          <span>Hi, {{ session.get('name') }}</span>
-          {% if not session.get('is_admin') %}
-             <a href="{{ url_for('profile') }}" class="nav-btn" style="background: rgba(255,255,255,0.2);">Profile</a>
-          {% endif %}
-          <a class="nav-btn" href="{{ url_for('logout') }}">Logout</a>
-        </div>
-      {% else %}
-        {% if request.path == url_for('login') %}
-          <a class="nav-btn" href="{{ url_for('register') }}">Register</a>
-        {% elif request.path == url_for('register') %}
-          <a class="nav-btn" href="{{ url_for('login') }}">Login</a>
-        {% else %}
-          <a class="nav-btn" href="{{ url_for('login') }}">Login</a>
+      <div
+        style="color:white; font-weight:600; display: flex; gap: 10px; align-items: center; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 15px;">
+        <span>Hi, {{ session.get('name') }}</span>
+        {% if not session.get('is_admin') %}
+        <a href="{{ url_for('profile') }}" class="nav-btn" style="background: rgba(255,255,255,0.2);">Profile</a>
         {% endif %}
+        <a class="nav-btn" href="{{ url_for('logout') }}">Logout</a>
+      </div>
+      {% else %}
+      <div style="border-left: 1px solid rgba(255,255,255,0.2); padding-left: 15px; display:flex; gap:10px;">
+        {% if request.path == url_for('login') %}
+        <a class="nav-btn" href="{{ url_for('register') }}">Register</a>
+        {% elif request.path == url_for('register') %}
+        <a class="nav-btn" href="{{ url_for('login') }}">Login</a>
+        {% else %}
+        <a class="nav-btn" href="{{ url_for('login') }}">Login</a>
+        {% endif %}
+      </div>
       {% endif %}
     </div>
   </header>
 
   <main>
     {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="flash-container">
-          {% for category, message in messages %}
-            <div class="flash {{ category }}">{{ message }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
+    {% if messages %}
+    <div class="flash-container">
+      {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% endwith %}
 
     {% block content %}{% endblock %}
   </main>
 
-  <footer style="padding:20px;text-align:center;color:#666;">
-    © {{ 2025 }} Hanap Eskwela — Laguna listing
+  <footer style="padding:20px;text-align:center;color:#666; font-size: 14px;">
+    © {{ 2025 }} Hanap Eskwela — Laguna listing | <a href="{{ url_for('about') }}"
+      style="color:#666; text-decoration:none;">About Us</a>
   </footer>
 
   <script>
@@ -64,4 +77,5 @@
     }, 3000);
   </script>
 </body>
+
 </html>

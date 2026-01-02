@@ -5,80 +5,29 @@
 <style>
   /* Landing Page Specific Styles */
   .landing-hero {
+    position: relative;
     display: flex;
     flex-direction: column;
+    justify-content: center;
     align-items: center;
     text-align: center;
-    padding: 60px 20px;
-    background: linear-gradient(to bottom, #ffffff, #f1f8e9);
-    min-height: 80vh;
-  }
-
-  .landing-text {
-    margin-bottom: 40px;
-    max-width: 800px;
-  }
-
-  .landing-text h1 {
-    font-size: 64px;
-    color: #2E7D32;
-    margin: 0 0 20px 0;
-    line-height: 1.1;
-  }
-
-  .landing-text p {
-    font-size: 20px;
-    color: #555;
-    line-height: 1.6;
-  }
-
-  .cta-buttons {
-    display: flex;
-    gap: 20px;
-    justify-content: center;
-    margin-bottom: 40px;
-  }
-
-  .cta-btn {
-    padding: 15px 40px;
-    border-radius: 30px;
-    font-size: 18px;
-    font-weight: bold;
-    text-decoration: none;
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  .btn-login {
-    background-color: white;
-    color: #2E7D32;
-    border: 2px solid #2E7D32;
-  }
-
-  .btn-register {
-    background-color: #2E7D32;
-    color: white;
-    border: 2px solid #2E7D32;
-    box-shadow: 0 4px 15px rgba(46, 125, 50, 0.3);
-  }
-
-  .cta-btn:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-  }
-
-  /* Slideshow Container Styles */
-  .landing-slideshow-container {
     width: 100%;
-    max-width: 800px;
-    height: 450px;
-    border-radius: 20px;
+    min-height: 90vh; /* Covers most of the screen */
     overflow: hidden;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
-    border: 8px solid white;
-    position: relative;
-    background: #eee;
+    background: #000;
   }
 
+  /* Slideshow Background Container */
+  .slideshow-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+  }
+
+  /* Individual Slides */
   .slide {
     position: absolute;
     top: 0;
@@ -87,40 +36,124 @@
     height: 100%;
     object-fit: cover;
     opacity: 0;
-    transition: opacity 1s ease-in-out;
-    z-index: 1;
+    transition: opacity 1.5s ease-in-out;
   }
 
   .slide.active {
     opacity: 1;
-    z-index: 2;
   }
 
-  .slide-caption {
+  /* Dark Overlay for Text Readability */
+  .overlay {
     position: absolute;
-    bottom: 0;
+    top: 0;
     left: 0;
     width: 100%;
-    padding: 20px;
-    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-    color: white;
-    text-align: left;
-    z-index: 3;
-    opacity: 0;
-    transition: opacity 1s ease-in-out;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5); /* 50% opacity black */
+    z-index: 1;
   }
-  
-  .slide.active + .slide-caption {
-    opacity: 1;
+
+  /* Content Styling (above overlay) */
+  .landing-text {
+    position: relative;
+    z-index: 2;
+    max-width: 800px;
+    padding: 20px;
+    color: white;
+    animation: fadeIn 1s ease-out;
+  }
+
+  .landing-text h1 {
+    font-size: 64px;
+    color: white; /* Changed to white for contrast */
+    margin: 0 0 20px 0;
+    line-height: 1.1;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  }
+
+  .landing-text p {
+    font-size: 22px;
+    color: #f1f1f1;
+    line-height: 1.6;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    margin-bottom: 40px;
+  }
+
+  .cta-buttons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+  }
+
+  .cta-btn {
+    padding: 15px 40px;
+    border-radius: 30px;
+    font-size: 18px;
+    font-weight: bold;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+  }
+
+  .btn-login {
+    background-color: transparent;
+    color: white;
+    border: 2px solid white;
+  }
+  .btn-login:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .btn-register {
+    background-color: #2E7D32;
+    color: white;
+    border: 2px solid #2E7D32;
+    box-shadow: 0 4px 15px rgba(46, 125, 50, 0.5);
+  }
+  .btn-register:hover {
+    background-color: #1b5e20;
+    border-color: #1b5e20;
+  }
+
+  .cta-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  }
+
+  /* Location Caption (Optional) */
+  .slide-caption-corner {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 2;
+    color: rgba(255,255,255,0.7);
+    background: rgba(0,0,0,0.4);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-style: italic;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   @media (max-width: 768px) {
     .landing-text h1 { font-size: 42px; }
-    .landing-slideshow-container { height: 300px; }
   }
 </style>
 
 <div class="landing-hero">
+  <!-- Background Slideshow -->
+  <div class="slideshow-bg" id="slideshow-box">
+    <!-- JavaScript will insert images here -->
+  </div>
+
+  <!-- Dark Overlay -->
+  <div class="overlay"></div>
+
+  <!-- Centered Content -->
   <div class="landing-text">
     <h1>Hanap Eskwela</h1>
     <p>Discover the best higher education institutions in Laguna. View locations, compare tuition, and find your perfect academic match.</p>
@@ -132,16 +165,15 @@
     </div>
   </div>
 
-  <!-- Slideshow Section -->
-  <div class="landing-slideshow-container" id="slideshow-box">
-    <!-- JavaScript will populate images here -->
-  </div>
+  <!-- Caption Display -->
+  <div id="location-caption" class="slide-caption-corner" style="display:none;"></div>
 </div>
 
 <script>
   // School Data passed from backend
   const schools = {{ schools | tojson }};
   const container = document.getElementById('slideshow-box');
+  const captionBox = document.getElementById('location-caption');
   
   // Filter schools that actually have images
   const validSchools = schools.filter(s => s.img && s.img.trim() !== "");
@@ -163,23 +195,19 @@
           img.src = item.img;
           img.className = index === 0 ? 'slide active' : 'slide';
           img.alt = item.name;
-          img.onerror = function() { this.style.display='none'; }; // Hide broken images
+          img.dataset.schoolName = item.name;
+          img.onerror = function() { this.style.display='none'; }; 
           
-          // Caption Container
-          const caption = document.createElement('div');
-          caption.className = 'slide-caption';
-          caption.innerHTML = `<h3>${item.name}</h3>`;
-          
-          // Append Image then Caption (so CSS sibling selector works)
           container.appendChild(img);
-          container.appendChild(caption);
       });
+      
+      // Initial Caption
+      updateCaption(0);
 
       // Start Cycle if we have multiple images
       if (itemsToRender.length > 1) {
           let currentSlide = 0;
-          const slides = document.querySelectorAll('.slide');
-          const captions = document.querySelectorAll('.slide-caption');
+          const slides = container.getElementsByClassName('slide');
           
           setInterval(() => {
               // Hide current
@@ -188,7 +216,16 @@
               currentSlide = (currentSlide + 1) % slides.length;
               // Show next
               slides[currentSlide].classList.add('active');
-          }, 4000); // 4 seconds per slide
+              // Update caption
+              updateCaption(currentSlide);
+          }, 5000); // 5 seconds per slide for a slower pace
+      }
+
+      function updateCaption(index) {
+          if (itemsToRender[index] && itemsToRender[index].name) {
+              captionBox.innerText = "📍 " + itemsToRender[index].name;
+              captionBox.style.display = 'block';
+          }
       }
   }
 
