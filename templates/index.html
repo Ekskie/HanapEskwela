@@ -174,6 +174,9 @@
   /* Make the header of the routing smaller */
   .leaflet-routing-container h2 { font-size: 14px; margin-top: 0; }
   .leaflet-routing-container h3 { font-size: 13px; font-weight: normal; }
+  
+  .link-text { color: #1976D2; text-decoration: none; }
+  .link-text:hover { text-decoration: underline; }
 
   @keyframes zoomIn { from {transform: scale(0.95); opacity: 0;} to {transform: scale(1); opacity: 1;} }
   @media (max-width: 768px) {
@@ -258,8 +261,8 @@
 
       <div class="detail-row">
         <span class="detail-label">Contact & Socials</span>
-        <div>📞 <span id="m-contact"></span></div>
-        <div>🌐 <span id="m-socials"></span></div>
+        <div>📞 <a id="m-contact" class="link-text" href="#"></a></div>
+        <div>🌐 <a id="m-socials" class="link-text" href="#" target="_blank"></a></div>
       </div>
 
       <a id="m-link" href="#" target="_blank" class="action-btn">Apply / Visit Website</a>
@@ -421,8 +424,34 @@ function openModal(id) {
   document.getElementById('m-addr').innerText = s.address;
   document.getElementById('m-progs').innerText = s.programs;
   document.getElementById('m-tuition').innerText = s.tuition;
-  document.getElementById('m-contact').innerText = s.contact || 'N/A';
-  document.getElementById('m-socials').innerText = s.socials || 'N/A';
+  
+  // Handle Contact
+  const contactLink = document.getElementById('m-contact');
+  const contactText = s.contact || 'N/A';
+  contactLink.innerText = contactText;
+  if(contactText !== 'N/A') {
+      contactLink.href = `tel:${contactText.replace(/[^0-9]/g, '')}`;
+  } else {
+      contactLink.href = "#";
+      contactLink.style.pointerEvents = 'none';
+  }
+
+  // Handle Socials
+  const socialLink = document.getElementById('m-socials');
+  const socialText = s.socials || 'N/A';
+  socialLink.innerText = socialText;
+  if(socialText !== 'N/A') {
+      let url = socialText;
+      if (!url.startsWith('http')) {
+          url = 'https://' + url;
+      }
+      socialLink.href = url;
+      socialLink.style.pointerEvents = 'auto';
+  } else {
+      socialLink.href = "#";
+      socialLink.style.pointerEvents = 'none';
+  }
+  
   document.getElementById('m-link').href = s.link;
   
   const favBtn = document.getElementById('m-fav-btn');

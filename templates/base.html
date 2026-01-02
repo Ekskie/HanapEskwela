@@ -17,10 +17,14 @@
       {% endif %}
     </div>
     <div class="header-right">
-      <!-- FIXED: Changed session.get('user') to session.get('user_id') -->
       {% if session.get('user_id') %}
-        <div style="color:white; font-weight:600;">Hi, {{ session.get('name') }}</div>
-        <a class="nav-btn" href="{{ url_for('logout') }}">Logout</a>
+        <div style="color:white; font-weight:600; display: flex; gap: 10px; align-items: center;">
+          <span>Hi, {{ session.get('name') }}</span>
+          {% if not session.get('is_admin') %}
+             <a href="{{ url_for('profile') }}" class="nav-btn" style="background: rgba(255,255,255,0.2);">Profile</a>
+          {% endif %}
+          <a class="nav-btn" href="{{ url_for('logout') }}">Logout</a>
+        </div>
       {% else %}
         {% if request.path == url_for('login') %}
           <a class="nav-btn" href="{{ url_for('register') }}">Register</a>
@@ -57,14 +61,6 @@
       const flashContainer = document.querySelector('.flash-container');
       if (flashContainer) flashContainer.remove();
     }, 3000);
-
-    // Home icon click logic
-    const homeLink = document.getElementById('home-link');
-    if (homeLink) {
-      homeLink.addEventListener('click', (e) => {
-        // If specific logic needed for home click, add here
-      });
-    }
   </script>
 </body>
 </html>

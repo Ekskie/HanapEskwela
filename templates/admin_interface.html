@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
 {% block title %}Admin Dashboard{% endblock %}
 {% block content %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
 <div class="admin-container">
   
   <!-- Tabs -->
@@ -8,6 +11,7 @@
     <button class="tab-btn active" onclick="openTab(event, 'Dashboard')">Dashboard</button>
     <button class="tab-btn" onclick="openTab(event, 'Schools')">Manage Schools</button>
     <button class="tab-btn" onclick="openTab(event, 'Users')">User Management</button>
+    <button class="tab-btn" onclick="openTab(event, 'Settings')">Settings</button>
   </div>
 
   <!-- Dashboard Content -->
@@ -37,39 +41,50 @@
 
   <!-- Schools Content -->
   <div id="Schools" class="tab-content">
-    <h3>Add New School</h3>
-    <form method="post" class="school-form">
-      <input type="hidden" name="add_school" value="true">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h3 id="form-title">Add New School</h3>
+      <button id="cancel-edit-btn" class="cancel-btn" onclick="resetForm()" style="display:none;">Cancel Edit</button>
+    </div>
+
+    <form method="post" class="school-form" id="schoolForm">
+      <!-- Hidden School ID for Edit Mode -->
+      <input type="hidden" name="school_id" id="school_id">
+      
+      <!-- Map Section -->
+      <div style="grid-column: 1 / -1; margin-bottom:10px;">
+        <label style="font-size:12px; font-weight:bold; color:#555;">School Location (Click map to set)</label>
+        <div id="admin-map"></div>
+        <p id="latlng-display" style="font-size:11px; color:#666; margin-top:5px;">Lat: -, Lng: -</p>
+        <input type="hidden" name="lat" id="lat_input" required>
+        <input type="hidden" name="lng" id="lng_input" required>
+      </div>
+
       <div class="form-row">
-        <input name="name" placeholder="School Name" required>
-        <select name="type">
+        <input name="name" id="name" placeholder="School Name" required>
+        <select name="type" id="type">
           <option value="public">Public</option>
           <option value="private">Private</option>
         </select>
       </div>
       <div class="form-row">
-        <input name="place" placeholder="City" required>
-        <input name="address" placeholder="Full Address" required>
+        <input name="place" id="place" placeholder="City" required>
+        <input name="address" id="address" placeholder="Full Address" required>
       </div>
       <div class="form-row">
-        <input name="lat" placeholder="Latitude (e.g. 14.123)" type="number" step="any">
-        <input name="lng" placeholder="Longitude (e.g. 121.456)" type="number" step="any">
+        <input name="contact" id="contact" placeholder="Contact No.">
+        <input name="socials" id="socials" placeholder="Facebook Link">
       </div>
       <div class="form-row">
-        <input name="contact" placeholder="Contact No.">
-        <input name="socials" placeholder="Facebook Link">
+        <input name="tuition" id="tuition" placeholder="Tuition Fee">
+        <input name="slots" id="slots" placeholder="Slots Status">
       </div>
+      <textarea name="programs" id="programs" placeholder="Programs Offered" rows="2"></textarea>
+      <textarea name="desc" id="desc" placeholder="Description" rows="2"></textarea>
       <div class="form-row">
-        <input name="tuition" placeholder="Tuition Fee">
-        <input name="slots" placeholder="Slots Status">
+        <input name="img" id="img" placeholder="Image URL">
+        <input name="link" id="link" placeholder="Website Link">
       </div>
-      <textarea name="programs" placeholder="Programs Offered" rows="2"></textarea>
-      <textarea name="desc" placeholder="Description" rows="2"></textarea>
-      <div class="form-row">
-        <input name="img" placeholder="Image URL">
-        <input name="link" placeholder="Website Link">
-      </div>
-      <button type="submit" class="primary">Add School</button>
+      <button type="submit" class="primary" id="submit-btn">Add School</button>
     </form>
 
     <h3 style="margin-top:30px;">Existing Schools</h3>
@@ -78,7 +93,6 @@
         <tr>
           <th>Name</th>
           <th>Type</th>
-          <th>Views</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -87,8 +101,8 @@
         <tr>
           <td>{{ school.name }}</td>
           <td>{{ school.type }}</td>
-          <td>{{ school.views }}</td>
           <td>
+            <button type="button" class="action-btn edit-btn" onclick='editSchool({{ school | tojson }})'>Edit</button>
             <a href="{{ url_for('admin_delete_school', school_id=school.id) }}" class="delete-link" onclick="return confirm('Delete?')">Delete</a>
           </td>
         </tr>
@@ -133,9 +147,81 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Settings Content -->
+  <div id="Settings" class="tab-content">
+    <h2>Admin Settings</h2>
+    <div style="background:white; padding:30px; border-radius:8px; max-width:600px;">
+      <form action="{{ url_for('update_settings') }}" method="post" style="display:grid; gap:15px;">
+        <div>
+          <label style="display:block; font-weight:bold; margin-bottom:5px;">Admin Email</label>
+          <input type="text" value="{{ admin_user.email }}" disabled style="width:100%; padding:10px; background:#f0f0f0; border:1px solid #ddd; border-radius:4px;">
+        </div>
+        <div>
+          <label style="display:block; font-weight:bold; margin-bottom:5px;">Admin Name</label>
+          <input type="text" name="name" value="{{ admin_user.name }}" required style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+        </div>
+        
+        <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+        
+        <h3 style="font-size:16px; margin:0; color:#2E7D32;">Update Password</h3>
+        <div>
+          <label style="display:block; font-weight:bold; margin-bottom:5px;">New Password</label>
+          <input type="password" name="new_password" placeholder="Leave blank to keep current" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+        </div>
+        <div>
+          <label style="display:block; font-weight:bold; margin-bottom:5px;">Confirm Password</label>
+          <input type="password" name="confirm_password" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+        </div>
+        
+        <button type="submit" class="primary" style="margin-top:10px;">Save Admin Settings</button>
+      </form>
+    </div>
+  </div>
+
 </div>
 
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
+// --- Map Initialization ---
+let map, marker;
+const defaultLat = 14.2; 
+const defaultLng = 121.2;
+
+function initMap() {
+    if (document.getElementById('admin-map') && !map) {
+        map = L.map('admin-map').setView([defaultLat, defaultLng], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        map.on('click', function(e) {
+            updateMarker(e.latlng.lat, e.latlng.lng);
+        });
+    }
+}
+
+function updateMarker(lat, lng) {
+    if (marker) {
+        marker.setLatLng([lat, lng]);
+    } else {
+        marker = L.marker([lat, lng], {draggable: true}).addTo(map);
+        marker.on('dragend', function(event) {
+            const pos = event.target.getLatLng();
+            updateInputs(pos.lat, pos.lng);
+        });
+    }
+    updateInputs(lat, lng);
+}
+
+function updateInputs(lat, lng) {
+    document.getElementById('lat_input').value = lat;
+    document.getElementById('lng_input').value = lng;
+    document.getElementById('latlng-display').innerText = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
+}
+
 function openTab(evt, tabName) {
   var i, content, tabs;
   content = document.getElementsByClassName("tab-content");
@@ -148,13 +234,75 @@ function openTab(evt, tabName) {
   }
   document.getElementById(tabName).style.display = "block";
   evt.currentTarget.className += " active";
+  
+  if (tabName === 'Schools') {
+      setTimeout(() => {
+          initMap();
+          map.invalidateSize();
+      }, 100);
+  }
+}
+
+function editSchool(school) {
+    document.getElementById('Schools').scrollIntoView({ behavior: 'smooth' });
+    
+    document.getElementById('school_id').value = school.id;
+    document.getElementById('name').value = school.name;
+    document.getElementById('type').value = school.type;
+    document.getElementById('place').value = school.place;
+    document.getElementById('address').value = school.address;
+    document.getElementById('contact').value = school.contact || '';
+    document.getElementById('socials').value = school.socials || '';
+    document.getElementById('tuition').value = school.tuition;
+    document.getElementById('slots').value = school.slots;
+    document.getElementById('programs').value = school.programs;
+    document.getElementById('desc').value = school.desc || '';
+    document.getElementById('img').value = school.img;
+    document.getElementById('link').value = school.link;
+
+    const lat = school.lat || defaultLat;
+    const lng = school.lng || defaultLng;
+    if (map) {
+        map.setView([lat, lng], 14);
+        updateMarker(lat, lng);
+    } else {
+        setTimeout(() => {
+             map.setView([lat, lng], 14);
+             updateMarker(lat, lng);
+        }, 500);
+    }
+
+    document.getElementById('form-title').innerText = "Edit School: " + school.name;
+    document.getElementById('form-title').style.color = "#E65100";
+    document.getElementById('submit-btn').innerText = "Update School";
+    document.getElementById('submit-btn').style.background = "#E65100";
+    document.getElementById('cancel-edit-btn').style.display = 'block';
+}
+
+function resetForm() {
+    document.getElementById('schoolForm').reset();
+    document.getElementById('school_id').value = "";
+    if (map) {
+        map.setView([defaultLat, defaultLng], 10);
+        if (marker) map.removeLayer(marker);
+        marker = null;
+    }
+    document.getElementById('latlng-display').innerText = "Lat: -, Lng: -";
+    document.getElementById('lat_input').value = "";
+    document.getElementById('lng_input').value = "";
+
+    document.getElementById('form-title').innerText = "Add New School";
+    document.getElementById('form-title').style.color = "initial";
+    document.getElementById('submit-btn').innerText = "Add School";
+    document.getElementById('submit-btn').style.background = "#2E7D32";
+    document.getElementById('cancel-edit-btn').style.display = 'none';
 }
 </script>
 
 <style>
   .admin-container { padding: 20px; max-width: 1000px; margin: 0 auto; }
-  .tabs { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; }
-  .tab-btn { padding: 10px 20px; border: none; background: none; cursor: pointer; font-size: 16px; color: #666; }
+  .tabs { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; overflow-x: auto; }
+  .tab-btn { padding: 10px 20px; border: none; background: none; cursor: pointer; font-size: 16px; color: #666; white-space: nowrap; }
   .tab-btn.active { border-bottom: 3px solid #2E7D32; color: #2E7D32; font-weight: bold; }
   .tab-content { display: none; animation: fadeEffect 0.5s; }
   
@@ -168,15 +316,28 @@ function openTab(evt, tabName) {
   
   .school-form { display: grid; gap: 10px; background: white; padding: 20px; border-radius: 8px; }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  input, select, textarea { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+  input, select, textarea { padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
   
   .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
   .status-badge.active { background: #e8f5e9; color: #2e7d32; }
   .status-badge.banned { background: #ffebee; color: #c62828; }
   
-  .action-btn { text-decoration: none; font-size: 12px; background: #eee; padding: 4px 8px; border-radius: 4px; color: #333; }
+  .action-btn { text-decoration: none; font-size: 12px; background: #eee; padding: 4px 8px; border-radius: 4px; color: #333; cursor:pointer; border:none;}
   .delete-link { color: red; font-size: 12px; }
+  .edit-btn { color: #1565C0; background: #e3f2fd; }
+  .cancel-btn { background: #eee; border:none; padding:8px 12px; border-radius:4px; cursor:pointer; font-size:12px; }
+  
+  #admin-map {
+      height: 300px;
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      z-index: 1;
+  }
 
   @keyframes fadeEffect { from {opacity: 0;} to {opacity: 1;} }
+  @media (max-width: 600px) {
+      .form-row { grid-template-columns: 1fr; }
+  }
 </style>
 {% endblock %}
