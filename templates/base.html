@@ -17,6 +17,7 @@
       {% endif %}
     </div>
     <div class="header-right">
+      <a class="nav-btn" href="{{ url_for('search_schools') }}">Search Schools</a>
       {% if session.get('user_id') %}
         <div style="color:white; font-weight:600; display: flex; gap: 10px; align-items: center;">
           <span>Hi, {{ session.get('name') }}</span>

@@ -128,14 +128,17 @@ def landing():
 
 @app.route('/home')
 def home():
-    # NOTE: This page is viewable publicly (as per "Student Home"), 
-    # but some features like Favorites need login.
-    
-    # 1. Fetch Schools
+    # Only need school data for the map markers in the hero section
+    schools_res = supabase.table('schools').select('*').execute()
+    schools = schools_res.data
+    return render_template('index.html', schools=schools)
+
+@app.route('/search')
+def search_schools():
+    # Fetch schools and favorites for the full search interface
     schools_res = supabase.table('schools').select('*').execute()
     schools = schools_res.data
     
-    # 2. Fetch User Favorites (Only if logged in)
     user_id = session.get('user_id')
     fav_ids = []
     
@@ -143,11 +146,10 @@ def home():
         fav_res = supabase.table('favorites').select('school_id').eq('user_id', user_id).execute()
         fav_ids = [item['school_id'] for item in fav_res.data]
     
-    # 3. Merge data
     for s in schools:
         s['is_fav'] = s['id'] in fav_ids
         
-    return render_template('index.html', schools=schools)
+    return render_template('search.html', schools=schools)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
