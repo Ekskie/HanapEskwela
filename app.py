@@ -1,9 +1,13 @@
 import os
+import random
+import string
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from functools import wraps
 from supabase import create_client, Client
-import datetime
 
 # Load environment variables from .env file
 load_dotenv()
@@ -12,8 +16,6 @@ app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default-dev-key')
 
 # --- SUPABASE CONFIGURATION ---
-# IMPORTANT: For password updates to work reliably from the backend, 
-# ensure SUPABASE_KEY in your .env is the "service_role" secret key.
 url = os.getenv('SUPABASE_URL')
 key = os.getenv('SUPABASE_KEY')
 
@@ -21,6 +23,49 @@ if not url or not key:
     raise ValueError("Supabase URL and Key are missing. Please check your .env file.")
 
 supabase: Client = create_client(url, key)
+
+# --- SMTP / EMAIL FUNCTIONS ---
+
+def send_2fa_email(to_email, code):
+    """Sends a 2FA verification code via SMTP (Brevo)"""
+    smtp_server = os.getenv('SMTP_SERVER')
+    smtp_port = int(os.getenv('SMTP_PORT', 587))
+    smtp_user = os.getenv('SMTP_USERNAME')
+    smtp_password = os.getenv('SMTP_PASSWORD')
+    smtp_sender = os.getenv('SMTP_SENDER')
+
+    if not all([smtp_server, smtp_user, smtp_password]):
+        print("⚠️ SMTP credentials missing. 2FA code printed to console instead.")
+        print(f"👉 2FA CODE FOR {to_email}: {code}")
+        return False
+
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = smtp_sender
+        msg['To'] = to_email
+        msg['Subject'] = "HanapEskwela Admin Verification Code"
+
+        body = f"""
+        <html>
+          <body>
+            <h2>Admin Login Verification</h2>
+            <p>Your two-factor authentication code is:</p>
+            <h1 style="color: #2E7D32; letter-spacing: 5px;">{code}</h1>
+            <p>If you did not request this, please ignore this email.</p>
+          </body>
+        </html>
+        """
+        msg.attach(MIMEText(body, 'html'))
+
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"❌ Error sending email: {e}")
+        return False
 
 # --- Helper Functions ---
 
@@ -107,10 +152,26 @@ def login():
                     return render_template('login.html')
 
                 if profile.get('is_admin', False):
+                    # --- ADMIN 2FA FLOW ---
+                    # 1. Generate Code
+                    code = ''.join(random.choices(string.digits, k=6))
+                    
+                    # 2. Store in session (temp)
                     session['pre_2fa_user_id'] = user_id
                     session['pre_2fa_profile'] = profile
+                    session['admin_2fa_code'] = code # Store expected code
+                    
+                    # 3. Send Email
+                    email_sent = send_2fa_email(email, code)
+                    
+                    if email_sent:
+                        flash(f"Verification code sent to {email}", 'success')
+                    else:
+                        flash("Could not send email. Check server logs for code (Dev Mode).", 'warning')
+
                     return render_template('login_2fa.html')
                 
+                # Standard User Success
                 session['user_id'] = user_id
                 session['email'] = auth_response.user.email
                 session['name'] = profile.get('name')
@@ -125,23 +186,31 @@ def login():
 
 @app.route('/verify-2fa', methods=['POST'])
 def verify_2fa():
-    code = request.form.get('code')
+    code_input = request.form.get('code')
+    
     user_id = session.get('pre_2fa_user_id')
     profile = session.get('pre_2fa_profile')
+    expected_code = session.get('admin_2fa_code')
     
-    if not user_id: return redirect(url_for('login'))
+    if not user_id: 
+        return redirect(url_for('login'))
     
-    if code == '123456':
+    if code_input == expected_code:
+        # Clear temp session vars
         session.pop('pre_2fa_user_id', None)
         session.pop('pre_2fa_profile', None)
+        session.pop('admin_2fa_code', None)
+        
+        # Log in admin
         session['user_id'] = user_id
         session['email'] = profile.get('email')
         session['name'] = profile.get('name')
         session['is_admin'] = True
+        
         flash('Admin authentication verified.', 'success')
         return redirect(url_for('admin_interface'))
     else:
-        flash('Invalid verification code.', 'error')
+        flash('Invalid verification code. Please try again.', 'error')
         return render_template('login_2fa.html')
 
 @app.route('/register', methods=['GET', 'POST'])

@@ -15,7 +15,7 @@
     {% endwith %}
 
     <form action="{{ url_for('verify_2fa') }}" method="post">
-      <input type="text" name="code" placeholder="Enter Code (Default: 123456)" style="text-align:center; letter-spacing:4px; font-size:18px;" required />
+      <input type="text" name="code" placeholder="Enter Code" style="text-align:center; letter-spacing:4px; font-size:18px;" required />
       <button type="submit" class="primary">Verify</button>
     </form>
   </div>

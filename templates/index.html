@@ -90,7 +90,9 @@
     z-index: 2;
     cursor: pointer;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: all 0.2s;
   }
+  .fav-icon:hover { transform: scale(1.1); color: #999; }
   .fav-icon.active { color: #f44336; }
 
   /* Modal Styles */
@@ -150,6 +152,21 @@
     margin-top: 20px;
     text-align: center;
     font-size: 14px;
+  }
+
+  /* Improved Favorite Button Styles */
+  #m-fav-btn {
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 1px solid transparent;
+  }
+  #m-fav-btn:hover {
+      background-color: #e0e0e0 !important;
+      transform: translateY(-2px);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  #m-fav-btn.active:hover {
+      background-color: #ffcdd2 !important;
   }
 
   .nav-btn {
@@ -288,24 +305,52 @@ let currentSchoolId = null;
 let routingControl = null;
 
 // Explicit Request Function attached to Button
-function requestUserLocation() {
+async function requestUserLocation() {
     const btn = document.getElementById('gps-btn');
     btn.innerHTML = "⌛ Locating...";
+    btn.style.backgroundColor = "#FF9800"; // Orange while loading
     
+    // 1. Check for Secure Context (HTTPS) - Browser Requirement
+    if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        alert("⚠️ GPS Error: Browser blocked location request.\n\nREASON: You are accessing this site via an insecure connection (HTTP).\n\nSOLUTION: Geolocation only works on HTTPS or localhost.");
+        btn.innerHTML = "❌ Insecure";
+        btn.style.backgroundColor = "#F44336"; 
+        return;
+    }
+
     if (!navigator.geolocation) {
         alert("Your browser does not support Geolocation.");
         btn.innerHTML = "❌ Not Supported";
         return;
     }
 
+    // 2. Check Permissions API to detect if already blocked
+    if (navigator.permissions && navigator.permissions.query) {
+        try {
+            const result = await navigator.permissions.query({ name: 'geolocation' });
+            if (result.state === 'denied') {
+                alert("❌ Permission Denied.\n\nYou have previously blocked location access for this site.\n\nTO FIX:\n1. Click the Lock/Info icon in your address bar (top left).\n2. Go to 'Site Settings' or 'Permissions'.\n3. Reset 'Location' to 'Ask' or 'Allow'.\n4. Reload the page and try again.");
+                btn.innerHTML = "🚫 Denied";
+                btn.style.backgroundColor = "#F44336";
+                return;
+            }
+        } catch (e) {
+            console.log("Permissions API not supported fully.");
+        }
+    }
+
+    // 3. Request Position
+    // NOTE: 'enableHighAccuracy' is set to FALSE to prevent timeouts on mobile indoors
     navigator.geolocation.getCurrentPosition(
         (pos) => {
+            // Success
             userLat = pos.coords.latitude;
             userLng = pos.coords.longitude;
             console.log("Location found:", userLat, userLng);
             
             btn.innerHTML = "📍 GPS Active";
             btn.classList.add('active');
+            btn.style.backgroundColor = "#4CAF50"; // Green
             
             // If a school modal is already open, reload it to draw the route
             if (currentSchoolId) {
@@ -313,25 +358,33 @@ function requestUserLocation() {
             }
         },
         (err) => { 
+            // Error Handling
             console.error("Location Error:", err);
             let msg = "Unknown error.";
+            let btnText = "⚠️ Retry";
+            
             switch(err.code) {
                 case err.PERMISSION_DENIED:
-                    msg = "Permission denied. Please allow location access in your browser settings.";
+                    msg = "❌ Permission Denied.\n\nPlease allow location access in the popup or your browser settings.";
+                    btnText = "🚫 Denied";
                     break;
                 case err.POSITION_UNAVAILABLE:
-                    msg = "Location information is unavailable. Check your GPS signal.";
+                    msg = "❌ Location Unavailable.\n\nYour device cannot determine your location. Please check if your GPS is on.";
+                    btnText = "❓ Unavailable";
                     break;
                 case err.TIMEOUT:
-                    msg = "The request to get user location timed out.";
+                    msg = "⌛ Timeout.\n\nThe request took too long. Please try again.";
+                    btnText = "⌛ Timeout";
                     break;
             }
-            alert("Location Failed: " + msg);
-            btn.innerHTML = "⚠️ Retry GPS";
+            
+            alert(msg);
+            btn.innerHTML = btnText;
+            btn.style.backgroundColor = "#F44336"; // Red
         },
         { 
-            enableHighAccuracy: true, 
-            timeout: 15000, 
+            enableHighAccuracy: false, // Changed to false for better mobile compatibility/speed
+            timeout: 20000, 
             maximumAge: 0 
         }
     );
@@ -350,10 +403,11 @@ function renderSchools(list) {
     const div = document.createElement('div');
     div.className = 'school-card';
     div.onclick = (e) => {
+      // Open modal only if not clicking the heart
       if(!e.target.classList.contains('fav-icon')) openModal(s.id);
     };
     div.innerHTML = `
-      <div class="fav-icon ${s.is_fav ? 'active' : ''}" onclick="toggleFav('${s.id}', this)">♥</div>
+      <div class="fav-icon ${s.is_fav ? 'active' : ''}" data-id="${s.id}" onclick="event.stopPropagation(); toggleFav('${s.id}', this)">♥</div>
       <img src="${s.img}" class="card-img" onerror="this.src='https://via.placeholder.com/400x200'">
       <div class="card-body">
         <div class="school-type-badge">${s.type}</div>
@@ -384,7 +438,11 @@ function filterSchools() {
   renderSchools(filtered);
 }
 
+// Logic for clicking heart icon on the card
 function toggleFav(id, btn) {
+  // Optimistic UI toggle for immediate feedback
+  btn.classList.toggle('active');
+
   fetch('/api/toggle_favorite', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -392,10 +450,74 @@ function toggleFav(id, btn) {
   })
   .then(res => res.json())
   .then(data => {
-    btn.classList.toggle('active');
     const s = schools.find(x => x.id === id);
-    if(s) s.is_fav = !s.is_fav;
+    if(s) {
+        s.is_fav = (data.status === 'added');
+        // Ensure UI matches server state (in case optimistic was wrong)
+        if(s.is_fav) btn.classList.add('active');
+        else btn.classList.remove('active');
+    }
+  })
+  .catch(err => {
+      console.error(err);
+      // Revert if error
+      btn.classList.toggle('active');
   });
+}
+
+// Logic for clicking big button in the modal
+function toggleModalFav() {
+    const btn = document.getElementById('m-fav-btn');
+    if(btn.disabled) return; // Prevention
+    
+    btn.disabled = true;
+    const originalText = btn.innerText;
+    btn.innerText = "Processing...";
+    
+    fetch('/api/toggle_favorite', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({school_id: currentSchoolId})
+    })
+    .then(res => res.json())
+    .then(data => {
+        const s = schools.find(x => x.id === currentSchoolId);
+        if(s) {
+            s.is_fav = (data.status === 'added');
+            updateModalFavBtnState(s.is_fav);
+            
+            // Also sync the grid icon if visible
+            const gridIcon = document.querySelector(`.fav-icon[data-id="${currentSchoolId}"]`);
+            if(gridIcon) {
+                if(s.is_fav) gridIcon.classList.add('active');
+                else gridIcon.classList.remove('active');
+            }
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        btn.innerText = originalText;
+    })
+    .finally(() => {
+        btn.disabled = false;
+    });
+}
+
+function updateModalFavBtnState(isFav) {
+    const btn = document.getElementById('m-fav-btn');
+    if(isFav) {
+        btn.innerHTML = "♥ Remove Favorite";
+        btn.style.background = "#ffebee";
+        btn.style.color = "#d32f2f";
+        btn.style.borderColor = "#d32f2f";
+        btn.classList.add('active');
+    } else {
+        btn.innerHTML = "♡ Add to Favorites";
+        btn.style.background = "#f5f5f5";
+        btn.style.color = "#333";
+        btn.style.borderColor = "transparent";
+        btn.classList.remove('active');
+    }
 }
 
 function openModal(id) {
@@ -454,8 +576,8 @@ function openModal(id) {
   
   document.getElementById('m-link').href = s.link;
   
-  const favBtn = document.getElementById('m-fav-btn');
-  favBtn.innerText = s.is_fav ? "Remove Favorite" : "Add to Favorites";
+  // Initialize modal favorite button state
+  updateModalFavBtnState(s.is_fav);
 
   // Google Maps Link Logic
   const gLink = document.getElementById('m-gmaps-link');
@@ -534,15 +656,6 @@ function openModal(id) {
         map.setView(schoolLatLng, 13);
     }
   }, 200);
-}
-
-function toggleModalFav() {
-    const btn = document.getElementById('m-fav-btn');
-    toggleFav(currentSchoolId, { classList: { toggle: ()=>{} } }); 
-    const s = schools.find(x => x.id === currentSchoolId);
-    setTimeout(() => {
-        btn.innerText = s.is_fav ? "Remove Favorite" : "Add to Favorites";
-    }, 100);
 }
 
 function closeModal() {
