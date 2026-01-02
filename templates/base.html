@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{% block title %}HanapEskwela{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <a href="{{ url_for('index') }}" id="home-link">
+        <img src="https://cdn-icons-png.flaticon.com/512/25/25694.png" alt="Home" style="width:36px;filter:brightness(0) invert(1);">
+      </a>
+      {% if request.path != url_for('index') %}
+        <h1 class="site-title">Hanap Eskwela</h1>
+      {% endif %}
+    </div>
+    <div class="header-right">
+      {% if session.get('user') %}
+        <div style="color:white; font-weight:600;">Hi, {{ session.get('name') }}</div>
+        <a class="nav-btn" href="{{ url_for('logout') }}">Logout</a>
+      {% else %}
+        {% if request.path == url_for('login') %}
+          <a class="nav-btn" href="{{ url_for('register') }}">Register</a>
+        {% elif request.path == url_for('register') %}
+          <a class="nav-btn" href="{{ url_for('login') }}">Login</a>
+        {% else %}
+          <a class="nav-btn" href="{{ url_for('login') }}">Login</a>
+        {% endif %}
+      {% endif %}
+    </div>
+  </header>
+
+  <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-container">
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer style="padding:20px;text-align:center;color:#666;">
+    © {{ 2025 }} Hanap Eskwela — Laguna listing
+  </footer>
+
+  <script>
+    // Auto-hide flash messages
+    setTimeout(() => {
+      const flashContainer = document.querySelector('.flash-container');
+      if (flashContainer) flashContainer.remove();
+    }, 3000);
+
+    // Home icon click logic
+    const homeLink = document.getElementById('home-link');
+    if (homeLink) {
+      homeLink.addEventListener('click', (e) => {
+        if (window.location.pathname === "{{ url_for('index') }}") {
+          e.preventDefault();
+          const flash = document.createElement('div');
+          flash.className = 'flash-container';
+          flash.innerHTML = `<div class="flash success">Already on the landing page.</div>`;
+          document.body.appendChild(flash);
+          setTimeout(() => flash.remove(), 3000);
+        }
+      });
+    }
+  </script>
+</body>
+</html>

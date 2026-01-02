@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Login — HanapEskwela{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <h2>Sign in to HanapEskwela</h2>
+    {% if error %}
+      <div class="login-error">{{ error }}</div>
+    {% endif %}
+    <form method="post">
+      <input type="email" name="email" placeholder="Email" required />
+      <input type="password" name="password" placeholder="Password" required />
+      <button type="submit" class="primary">Sign in</button>
+    </form>
+    <p class="muted">If you are an admin use your admin email. Admins are redirected to the Admin Dashboard after login.</p>
+  </div>
+</div>
+{% endblock %}
