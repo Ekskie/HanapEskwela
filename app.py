@@ -2,6 +2,7 @@ import os
 import random
 import string
 import smtplib
+from datetime import datetime # Added datetime import
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
@@ -128,14 +129,16 @@ def landing():
 
 @app.route('/home')
 def home():
-    # Only need school data for the map markers in the hero section
+    # MODIFIED: Only fetches schools for the Hero Map (no search logic here anymore)
     schools_res = supabase.table('schools').select('*').execute()
     schools = schools_res.data
     return render_template('index.html', schools=schools)
 
+# --- NEW: Search Route ---
+
 @app.route('/search')
 def search_schools():
-    # Fetch schools and favorites for the full search interface
+    # This route handles the search grid, filters, and full map modal
     schools_res = supabase.table('schools').select('*').execute()
     schools = schools_res.data
     
@@ -151,10 +154,13 @@ def search_schools():
         
     return render_template('search.html', schools=schools)
 
+# --- NEW: About Route ---
+
 @app.route('/about')
 def about():
     return render_template('about.html')
 
+# --- Authentication Routes ---
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -372,6 +378,8 @@ def admin_interface():
             }
 
             if school_id:
+                # Update the timestamp when editing
+                data['updated_at'] = datetime.now().isoformat()
                 supabase.table('schools').update(data).eq('id', school_id).execute()
                 flash('School updated successfully.', 'success')
             else:

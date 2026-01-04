@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Search Schools — HanapEskwela{% endblock %}
 {% block content %}
+<!-- Leaflet CSS for Modal Map -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
 
@@ -36,10 +37,11 @@
   .school-card {
     background: white; border-radius: 12px; overflow: hidden;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s; cursor: pointer; position: relative;
+    display: flex; flex-direction: column;
   }
   .school-card:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.12); }
   .card-img { height: 150px; width: 100%; object-fit: cover; }
-  .card-body { padding: 15px; }
+  .card-body { padding: 15px; flex-grow: 1; }
   .card-title { margin: 0 0 5px 0; font-size: 18px; color: #333; }
   .card-meta { font-size: 13px; color: #666; display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
   
@@ -50,6 +52,50 @@
   }
   .fav-icon:hover { transform: scale(1.1); color: #999; }
   .fav-icon.active { color: #f44336; }
+
+  /* Compare Button on Card */
+  .compare-check-btn {
+      margin: 10px 15px 15px 15px;
+      padding: 8px;
+      border: 1px solid #2E7D32;
+      background: white;
+      color: #2E7D32;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      transition: all 0.2s;
+  }
+  .compare-check-btn:hover { background: #e8f5e9; }
+  .compare-check-btn.selected {
+      background: #2E7D32;
+      color: white;
+  }
+
+  /* Compare Floating Bar */
+  .compare-bar {
+      position: fixed;
+      bottom: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: white;
+      padding: 15px 30px;
+      border-radius: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      z-index: 950;
+      transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  .compare-bar.visible { bottom: 30px; }
+  .compare-count { font-weight: bold; color: #81c784; }
+  .compare-action-btn {
+      background: #2E7D32; color: white; border: none; padding: 8px 20px;
+      border-radius: 20px; cursor: pointer; font-weight: bold;
+  }
 
   /* Modal Styles */
   .modal-overlay {
@@ -75,10 +121,26 @@
     display: inline-block; background: #2E7D32; color: white; padding: 12px 24px;
     border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 20px; text-align: center;
   }
+
+  /* Comparison Modal Specifics */
+  .compare-modal-content {
+      max-width: 1200px;
+      flex-direction: column;
+      overflow-y: auto;
+  }
+  .compare-table {
+      width: 100%; border-collapse: collapse; margin-top: 20px;
+  }
+  .compare-table th, .compare-table td {
+      border: 1px solid #eee; padding: 15px; text-align: left; vertical-align: top;
+  }
+  .compare-table th { background: #f9f9f9; width: 150px; font-weight: bold; color: #555; }
+  .compare-header-img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; }
   
   @media (max-width: 768px) {
     .modal-content { flex-direction: column; height: auto; max-height: 90vh; }
     .modal-left, .modal-right { width: 100%; }
+    .compare-table { display: block; overflow-x: auto; white-space: nowrap; }
   }
 </style>
 
@@ -99,8 +161,17 @@
 </div>
 
 <div class="grid" id="schoolGrid">
-  </div>
+  <!-- Filled by JS -->
+</div>
 
+<!-- Comparison Floating Bar -->
+<div class="compare-bar" id="compareBar">
+    <div>Comparing <span class="compare-count" id="compareCount">0</span> schools</div>
+    <button class="compare-action-btn" onclick="openCompareModal()">Compare Now</button>
+    <button style="background:none; border:none; color:#aaa; cursor:pointer;" onclick="clearComparison()">Clear</button>
+</div>
+
+<!-- School Details Modal -->
 <div class="modal-overlay" id="modal">
   <div class="modal-content">
     <button class="modal-close" onclick="closeModal()">×</button>
@@ -133,6 +204,21 @@
   </div>
 </div>
 
+<!-- Comparison Modal -->
+<div class="modal-overlay" id="compareModal">
+    <div class="modal-content compare-modal-content">
+        <div style="padding: 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin:0;">School Comparison</h2>
+            <button style="background:#eee; border:none; width:36px; height:36px; border-radius:50%; font-size:20px; cursor:pointer;" onclick="document.getElementById('compareModal').style.display='none'">×</button>
+        </div>
+        <div style="padding: 20px; overflow-x: auto;">
+            <table class="compare-table" id="compareTableBody">
+                <!-- Filled by JS -->
+            </table>
+        </div>
+    </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
@@ -143,6 +229,7 @@ let userLat = null;
 let userLng = null;
 let currentSchoolId = null;
 let routingControl = null;
+let selectedSchools = []; // IDs of schools selected for comparison
 
 function renderSchools(list) {
   const grid = document.getElementById('schoolGrid');
@@ -150,9 +237,13 @@ function renderSchools(list) {
   if(list.length === 0) { grid.innerHTML = '<p style="text-align:center; grid-column:1/-1;">No schools found.</p>'; return; }
 
   list.forEach(s => {
+    const isSelected = selectedSchools.includes(s.id);
     const div = document.createElement('div');
     div.className = 'school-card';
-    div.onclick = (e) => { if(!e.target.classList.contains('fav-icon')) openModal(s.id); };
+    div.onclick = (e) => { 
+        // Don't open modal if clicking fav icon or compare button
+        if(!e.target.closest('.fav-icon') && !e.target.closest('.compare-check-btn')) openModal(s.id); 
+    };
     div.innerHTML = `
       <div class="fav-icon ${s.is_fav ? 'active' : ''}" data-id="${s.id}" onclick="event.stopPropagation(); toggleFav('${s.id}', this)">♥</div>
       <img src="${s.img}" class="card-img" onerror="this.src='https://via.placeholder.com/400x200'">
@@ -160,6 +251,9 @@ function renderSchools(list) {
         <h3 class="card-title">${s.name}</h3>
         <div class="card-meta">📍 ${s.place}</div>
         <div class="card-meta">💰 ${s.tuition}</div>
+      </div>
+      <div class="compare-check-btn ${isSelected ? 'selected' : ''}" onclick="toggleCompare('${s.id}', this)">
+        ${isSelected ? '✓ Added to Compare' : '+ Add to Compare'}
       </div>
     `;
     grid.appendChild(div);
@@ -179,6 +273,97 @@ function filterSchools() {
   renderSchools(filtered);
 }
 
+// --- Comparison Logic ---
+
+function toggleCompare(id, btn) {
+    if (selectedSchools.includes(id)) {
+        selectedSchools = selectedSchools.filter(sid => sid !== id);
+        btn.classList.remove('selected');
+        btn.innerText = "+ Add to Compare";
+    } else {
+        if (selectedSchools.length >= 3) {
+            alert("You can only compare up to 3 schools at a time.");
+            return;
+        }
+        selectedSchools.push(id);
+        btn.classList.add('selected');
+        btn.innerText = "✓ Added to Compare";
+    }
+    updateCompareBar();
+}
+
+function updateCompareBar() {
+    const bar = document.getElementById('compareBar');
+    const count = document.getElementById('compareCount');
+    
+    count.innerText = selectedSchools.length;
+    
+    if (selectedSchools.length > 0) {
+        bar.classList.add('visible');
+    } else {
+        bar.classList.remove('visible');
+    }
+}
+
+function clearComparison() {
+    selectedSchools = [];
+    updateCompareBar();
+    filterSchools(); // Re-render to clear buttons
+}
+
+function openCompareModal() {
+    if (selectedSchools.length < 2) {
+        alert("Please select at least 2 schools to compare.");
+        return;
+    }
+
+    const modal = document.getElementById('compareModal');
+    const table = document.getElementById('compareTableBody');
+    const toCompare = schools.filter(s => selectedSchools.includes(s.id));
+    
+    // Build table HTML
+    let html = `
+        <tr>
+            <th></th>
+            ${toCompare.map(s => `
+                <td style="text-align:center;">
+                    <img src="${s.img}" class="compare-header-img" onerror="this.src='https://via.placeholder.com/400x200'">
+                    <h3 style="margin:5px 0;">${s.name}</h3>
+                </td>
+            `).join('')}
+        </tr>
+        <tr>
+            <th>Type</th>
+            ${toCompare.map(s => `<td><span style="background:#e8f5e9; padding:4px 8px; border-radius:12px; font-size:12px; font-weight:bold; color:#2E7D32;">${s.type.toUpperCase()}</span></td>`).join('')}
+        </tr>
+        <tr>
+            <th>Location</th>
+            ${toCompare.map(s => `<td>${s.address}</td>`).join('')}
+        </tr>
+        <tr>
+            <th>Tuition</th>
+            ${toCompare.map(s => `<td style="color:#d84315; font-weight:bold;">${s.tuition}</td>`).join('')}
+        </tr>
+         <tr>
+            <th>Slots</th>
+            ${toCompare.map(s => `<td>${s.slots}</td>`).join('')}
+        </tr>
+        <tr>
+            <th>Programs</th>
+            ${toCompare.map(s => `<td><div style="font-size:13px;">${s.programs}</div></td>`).join('')}
+        </tr>
+        <tr>
+            <th>Contact</th>
+            ${toCompare.map(s => `<td>${s.contact || 'N/A'}</td>`).join('')}
+        </tr>
+    `;
+    
+    table.innerHTML = html;
+    modal.style.display = 'flex';
+}
+
+// --- End Comparison Logic ---
+
 function toggleFav(id, btn) {
   btn.classList.toggle('active');
   fetch('/api/toggle_favorite', {
@@ -194,7 +379,6 @@ function toggleModalFav() {
     toggleFav(currentSchoolId, document.querySelector(`.fav-icon[data-id="${currentSchoolId}"]`));
     const btn = document.getElementById('m-fav-btn');
     const s = schools.find(x => x.id === currentSchoolId);
-    // Simple UI update, re-open modal to sync fully or just toggle text
     if(btn.innerText.includes("Add")) {
         btn.innerText = "♥ Remove Favorite"; btn.style.color = "red";
     } else {
@@ -207,7 +391,6 @@ function openModal(id) {
   if(!s) return;
   currentSchoolId = id;
 
-  // Track View
   fetch('/api/view_school', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({school_id: id}) })
   .then(r=>r.json()).then(d => document.getElementById('m-views').innerText = d.views || s.views);
 
@@ -221,13 +404,17 @@ function openModal(id) {
   document.getElementById('m-progs').innerText = s.programs;
   document.getElementById('m-tuition').innerText = s.tuition;
   document.getElementById('m-link').href = s.link;
+  document.getElementById('m-contact').innerText = s.contact;
+  document.getElementById('m-contact').href = `tel:${s.contact}`;
+  document.getElementById('m-socials').innerText = s.socials;
+  document.getElementById('m-socials').href = s.socials;
   
-  // Fav Button State
+
+
   const favBtn = document.getElementById('m-fav-btn');
   if(s.is_fav) { favBtn.innerText = "♥ Remove Favorite"; favBtn.style.color = "red"; }
   else { favBtn.innerText = "♡ Add to Favorites"; favBtn.style.color = "#333"; }
 
-  // Modal Map
   setTimeout(() => {
     if (!map) {
       map = L.map('map').setView([14.2, 121.2], 10);
